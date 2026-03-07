@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supermarkt Tycoon 2026</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-wrapper">
+        <div id="ui-sidebar">
+            <div class="stats-box">
+                <h2 id="store-name">Mein Markt</h2>
+                <p>Geld: <span id="money-display">1000</span>$</p>
+                <p>Tag: <span id="day-display">1</span> (Monat: <span id="month-display">1</span>)</p>
+            </div>
+
+            <div class="menu-section">
+                <h3>🛒 Bauen</h3>
+                <button class="build-btn" onclick="game.setBuildMode('shelf')">Regal (50$)</button>
+                <button class="build-btn" onclick="game.setBuildMode('register')">Kasse (150$)</button>
+                <button class="build-btn" onclick="game.setBuildMode('delete')">🗑 Löschen</button>
+            </div>
+
+            <div class="menu-section">
+                <h3>📦 Management</h3>
+                <button onclick="game.saveGame()">💾 Speichern</button>
+                <button onclick="game.resetGame()">🔄 Reset</button>
+            </div>
+            
+            <div id="status-msg">Bereit...</div>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <script src="customer.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
