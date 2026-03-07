@@ -2,39 +2,49 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Supermarkt Tycoon 2026</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Supermarkt Tycoon Pro 2026</title>
+    <style>
+        :root {
+            --bg: #0f172a; --panel: #1e293b; --accent: #38bdf8; --money: #22c55e;
+        }
+        body { margin: 0; background: var(--bg); color: white; font-family: 'Inter', sans-serif; display: flex; }
+        #sidebar { width: 300px; background: var(--panel); padding: 20px; box-shadow: 4px 0 15px rgba(0,0,0,0.3); height: 100vh; overflow-y: auto; }
+        canvas { flex-grow: 1; background: #000; cursor: crosshair; }
+        .stat { font-size: 1.2rem; margin-bottom: 10px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px; }
+        .btn { 
+            width: 100%; padding: 12px; margin: 5px 0; border: none; border-radius: 6px; 
+            cursor: pointer; font-weight: bold; transition: 0.2s; color: white;
+        }
+        .build { background: #475569; }
+        .build.active { background: var(--accent); outline: 2px solid white; }
+        .action { background: var(--money); }
+        .worker { background: #a855f7; }
+        h3 { border-bottom: 1px solid #334155; padding-bottom: 5px; margin-top: 20px; }
+    </style>
 </head>
 <body>
-    <div id="game-wrapper">
-        <div id="ui-sidebar">
-            <div class="stats-box">
-                <h2 id="store-name">Mein Markt</h2>
-                <p>Geld: <span id="money-display">1000</span>$</p>
-                <p>Tag: <span id="day-display">1</span> (Monat: <span id="month-display">1</span>)</p>
-            </div>
 
-            <div class="menu-section">
-                <h3>🛒 Bauen</h3>
-                <button class="build-btn" onclick="game.setBuildMode('shelf')">Regal (50$)</button>
-                <button class="build-btn" onclick="game.setBuildMode('register')">Kasse (150$)</button>
-                <button class="build-btn" onclick="game.setBuildMode('delete')">🗑 Löschen</button>
-            </div>
+<div id="sidebar">
+    <div class="stat">💰 <span id="money">1500</span>$</div>
+    <div class="stat">📦 Lager: <span id="stock">50</span> Einh.</div>
+    
+    <h3>🏗️ Bauen (Nur auf Pfaden!)</h3>
+    <button class="btn build" onclick="setMode('path')">🛣️ Pfad bauen (5$)</button>
+    <button class="btn build" onclick="setMode('shelf')">🛒 Regal (50$)</button>
+    <button class="btn build" onclick="setMode('register')">💰 Kasse (150$)</button>
+    <button class="btn build" onclick="setMode('delete')">🗑️ Abreißen</button>
 
-            <div class="menu-section">
-                <h3>📦 Management</h3>
-                <button onclick="game.saveGame()">💾 Speichern</button>
-                <button onclick="game.resetGame()">🔄 Reset</button>
-            </div>
-            
-            <div id="status-msg">Bereit...</div>
-        </div>
+    <h3>🚚 Logistik</h3>
+    <button class="btn action" onclick="orderTruck()">🚛 LKW bestellen (200$ / +100 Ware)</button>
+    
+    <h3>👷 Personal</h3>
+    <button class="btn worker" onclick="hireWorker()">👨‍💼 Mitarbeiter einstellen (300$)</button>
+    
+    <div id="msg" style="margin-top:20px; color: #94a3b8; font-size: 0.9rem;"></div>
+</div>
 
-        <canvas id="gameCanvas"></canvas>
-    </div>
+<canvas id="game"></canvas>
 
-    <script src="customer.js"></script>
-    <script src="game.js"></script>
+<script src="game.js"></script>
 </body>
 </html>
