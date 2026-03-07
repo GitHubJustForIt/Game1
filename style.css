@@ -1,0 +1,65 @@
+:root {
+    --bg-color: #1a1a2e;
+    --sidebar-color: #16213e;
+    --accent-color: #e94560;
+    --text-color: #ffffff;
+}
+
+body {
+    margin: 0;
+    overflow: hidden;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+#game-wrapper {
+    display: flex;
+    height: 100vh;
+}
+
+#ui-sidebar {
+    width: 250px;
+    background: var(--sidebar-color);
+    padding: 20px;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+    z-index: 10;
+}
+
+.stats-box {
+    background: rgba(255,255,255,0.1);
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.menu-section {
+    margin-bottom: 20px;
+}
+
+button {
+    width: 100%;
+    padding: 10px;
+    margin: 5px 0;
+    background: var(--accent-color);
+    border: none;
+    color: white;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+
+button:hover { filter: brightness(1.2); }
+button:active { transform: scale(0.95); }
+
+canvas {
+    flex-grow: 1;
+    background: #222;
+    cursor: crosshair;
+}
+
+#status-msg {
+    margin-top: 20px;
+    font-style: italic;
+    color: #888;
+}
