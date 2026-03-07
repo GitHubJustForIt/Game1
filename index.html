@@ -1,50 +1,880 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="UTF-8">
-    <title>Supermarkt Tycoon Pro 2026</title>
-    <style>
-        :root {
-            --bg: #0f172a; --panel: #1e293b; --accent: #38bdf8; --money: #22c55e;
-        }
-        body { margin: 0; background: var(--bg); color: white; font-family: 'Inter', sans-serif; display: flex; }
-        #sidebar { width: 300px; background: var(--panel); padding: 20px; box-shadow: 4px 0 15px rgba(0,0,0,0.3); height: 100vh; overflow-y: auto; }
-        canvas { flex-grow: 1; background: #000; cursor: crosshair; }
-        .stat { font-size: 1.2rem; margin-bottom: 10px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px; }
-        .btn { 
-            width: 100%; padding: 12px; margin: 5px 0; border: none; border-radius: 6px; 
-            cursor: pointer; font-weight: bold; transition: 0.2s; color: white;
-        }
-        .build { background: #475569; }
-        .build.active { background: var(--accent); outline: 2px solid white; }
-        .action { background: var(--money); }
-        .worker { background: #a855f7; }
-        h3 { border-bottom: 1px solid #334155; padding-bottom: 5px; margin-top: 20px; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SuperMarket Tycoon</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     INDEX.HTML — CENTRAL BRAIN
+     Loads all 5 scripts, wires them together, hosts the canvas renderer,
+     and drives the full game UI.
+     ═══════════════════════════════════════════════════════════════════════ -->
+
+<style>
+  /* ── Reset & Variables ─────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0d0f14;
+    --surface:  #161b24;
+    --panel:    #1e2535;
+    --border:   #2a3347;
+    --accent:   #00e5a0;
+    --accent2:  #ff6b35;
+    --accent3:  #f7c559;
+    --text:     #c8d8e8;
+    --muted:    #5a6a7a;
+    --danger:   #e63946;
+    --font-hd:  'Bebas Neue', sans-serif;
+    --font-ui:  'DM Mono', monospace;
+    --tile:     20px;
+  }
+
+  html, body { width:100%; height:100%; overflow:hidden; background:var(--bg); color:var(--text); font-family:var(--font-ui); }
+
+  /* ── Layout ──────────────────────────────────────────────────────── */
+  #app { display:grid; grid-template-columns:220px 1fr 240px; grid-template-rows:50px 1fr 120px; height:100vh; gap:0; }
+
+  /* ── Topbar ──────────────────────────────────────────────────────── */
+  #topbar {
+    grid-column: 1 / -1;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 24px;
+    position: relative;
+    z-index: 10;
+  }
+  #topbar .logo { font-family:var(--font-hd); font-size:1.6rem; color:var(--accent); letter-spacing:2px; }
+  .stat-pill {
+    display:flex; align-items:center; gap:6px;
+    background:var(--panel); border:1px solid var(--border);
+    padding:4px 12px; border-radius:20px; font-size:0.72rem;
+  }
+  .stat-pill .lbl { color:var(--muted); text-transform:uppercase; letter-spacing:1px; }
+  .stat-pill .val { color:var(--accent3); font-weight:500; }
+  #time-display { font-family:var(--font-hd); font-size:1.4rem; color:var(--accent3); margin-left:auto; }
+  .rush-badge {
+    background:var(--accent2); color:#fff;
+    font-size:0.65rem; letter-spacing:2px; text-transform:uppercase;
+    padding:2px 8px; border-radius:10px; opacity:0;
+    transition:opacity 0.4s;
+  }
+  .rush-badge.active { opacity:1; }
+
+  /* ── Left Panel ──────────────────────────────────────────────────── */
+  #left-panel {
+    background:var(--surface);
+    border-right:1px solid var(--border);
+    padding:12px 8px;
+    overflow-y:auto;
+    display:flex; flex-direction:column; gap:12px;
+  }
+  .panel-title {
+    font-family:var(--font-hd); font-size:1rem; letter-spacing:2px;
+    color:var(--accent); border-bottom:1px solid var(--border);
+    padding-bottom:4px; margin-bottom:4px;
+  }
+  .tool-btn {
+    width:100%; padding:7px 10px;
+    background:var(--panel); border:1px solid var(--border);
+    color:var(--text); font-family:var(--font-ui); font-size:0.72rem;
+    cursor:pointer; border-radius:4px; text-align:left;
+    transition:all 0.15s; letter-spacing:0.5px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .tool-btn:hover  { background:var(--border); border-color:var(--accent); }
+  .tool-btn.active { background:var(--accent); color:#000; border-color:var(--accent); }
+  .tool-btn .icon  { font-size:1rem; }
+
+  .hire-btn { background:var(--panel); border:1px solid var(--accent); color:var(--accent); }
+  .hire-btn:hover { background:var(--accent); color:#000; }
+
+  .emp-entry {
+    background:var(--panel); border:1px solid var(--border);
+    border-radius:4px; padding:6px 8px; font-size:0.68rem;
+  }
+  .emp-entry .ename { font-weight:500; color:var(--accent3); }
+  .energy-bar { height:3px; background:var(--border); border-radius:2px; margin-top:4px; }
+  .energy-fill { height:100%; border-radius:2px; background:var(--accent); transition:width 0.5s; }
+
+  /* ── Canvas area ─────────────────────────────────────────────────── */
+  #canvas-wrap {
+    position:relative; overflow:hidden; background:var(--bg);
+  }
+  canvas { display:block; image-rendering:pixelated; }
+
+  /* ── Right Panel ─────────────────────────────────────────────────── */
+  #right-panel {
+    background:var(--surface); border-left:1px solid var(--border);
+    padding:12px 8px; overflow-y:auto;
+    display:flex; flex-direction:column; gap:12px;
+  }
+
+  .rep-bar-wrap { background:var(--panel); border-radius:4px; overflow:hidden; height:8px; }
+  .rep-bar      { height:100%; background:linear-gradient(90deg,var(--accent2),var(--accent)); transition:width 0.8s; }
+
+  .price-row {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:4px 0; border-bottom:1px solid var(--border); font-size:0.68rem;
+  }
+  .price-row input[type=range] {
+    width:80px; accent-color:var(--accent);
+  }
+  .price-val { color:var(--accent3); min-width:36px; text-align:right; }
+
+  .upgrade-item {
+    background:var(--panel); border:1px solid var(--border);
+    border-radius:4px; padding:6px 8px; font-size:0.68rem;
+    cursor:pointer; transition:all 0.2s;
+  }
+  .upgrade-item:hover:not(.bought) { border-color:var(--accent3); }
+  .upgrade-item.bought { opacity:0.4; cursor:default; }
+  .upgrade-item .u-cost { color:var(--accent3); }
+  .upgrade-item .u-effect { color:var(--muted); font-size:0.62rem; }
+
+  /* ── Bottom bar ──────────────────────────────────────────────────── */
+  #bottombar {
+    grid-column: 1 / -1;
+    background:var(--surface); border-top:1px solid var(--border);
+    display:flex; align-items:stretch; gap:0; overflow:hidden;
+  }
+  #chart-wrap {
+    flex:1; padding:8px 12px;
+    display:flex; align-items:flex-end; gap:4px;
+  }
+  .chart-bar-wrap { display:flex; flex-direction:column; align-items:center; gap:2px; flex:1; max-width:28px; }
+  .chart-bar { width:100%; border-radius:2px 2px 0 0; min-height:2px; transition:height 0.4s; }
+  .chart-lbl { font-size:0.55rem; color:var(--muted); }
+
+  #log-panel {
+    width:300px; border-left:1px solid var(--border);
+    padding:6px 10px; overflow-y:auto; font-size:0.63rem;
+  }
+  .log-entry { padding:2px 0; border-bottom:1px solid var(--border); color:var(--muted); }
+  .log-entry.good  { color:var(--accent); }
+  .log-entry.bad   { color:var(--danger); }
+  .log-entry.warn  { color:var(--accent3); }
+
+  /* ── Overlay modals ──────────────────────────────────────────────── */
+  .overlay {
+    position:fixed; inset:0;
+    background:rgba(0,0,0,0.85);
+    display:flex; align-items:center; justify-content:center;
+    z-index:100;
+  }
+  .modal {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:8px; padding:32px 40px; min-width:360px; text-align:center;
+  }
+  .modal h1 { font-family:var(--font-hd); font-size:3rem; color:var(--accent); margin-bottom:8px; }
+  .modal p  { color:var(--muted); margin-bottom:24px; font-size:0.8rem; line-height:1.6; }
+  .btn-primary {
+    background:var(--accent); color:#000; font-family:var(--font-hd);
+    font-size:1.2rem; letter-spacing:2px; padding:12px 32px;
+    border:none; border-radius:4px; cursor:pointer; width:100%; margin-bottom:8px;
+    transition:filter 0.2s;
+  }
+  .btn-primary:hover { filter:brightness(1.2); }
+  .diff-select {
+    display:flex; gap:8px; margin-bottom:16px; justify-content:center;
+  }
+  .diff-btn {
+    padding:6px 18px; border-radius:4px; cursor:pointer;
+    border:1px solid var(--border); background:var(--panel);
+    font-family:var(--font-ui); font-size:0.75rem; color:var(--text);
+    transition:all 0.15s;
+  }
+  .diff-btn.sel { background:var(--accent); color:#000; border-color:var(--accent); }
+
+  /* ── Scrollbar ────────────────────────────────────────────────────── */
+  ::-webkit-scrollbar { width:4px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+</style>
 </head>
 <body>
 
-<div id="sidebar">
-    <div class="stat">💰 <span id="money">1500</span>$</div>
-    <div class="stat">📦 Lager: <span id="stock">50</span> Einh.</div>
-    
-    <h3>🏗️ Bauen (Nur auf Pfaden!)</h3>
-    <button class="btn build" onclick="setMode('path')">🛣️ Pfad bauen (5$)</button>
-    <button class="btn build" onclick="setMode('shelf')">🛒 Regal (50$)</button>
-    <button class="btn build" onclick="setMode('register')">💰 Kasse (150$)</button>
-    <button class="btn build" onclick="setMode('delete')">🗑️ Abreißen</button>
-
-    <h3>🚚 Logistik</h3>
-    <button class="btn action" onclick="orderTruck()">🚛 LKW bestellen (200$ / +100 Ware)</button>
-    
-    <h3>👷 Personal</h3>
-    <button class="btn worker" onclick="hireWorker()">👨‍💼 Mitarbeiter einstellen (300$)</button>
-    
-    <div id="msg" style="margin-top:20px; color: #94a3b8; font-size: 0.9rem;"></div>
+<!-- ═══════════════ START OVERLAY ════════════════ -->
+<div class="overlay" id="start-overlay">
+  <div class="modal">
+    <h1>SUPERMARKET<br>TYCOON</h1>
+    <p>Build your store. Hire staff. Serve customers.<br>Expand your empire — or go bankrupt trying.</p>
+    <div class="diff-select" id="diff-select">
+      <button class="diff-btn" data-d="EASY">EASY</button>
+      <button class="diff-btn sel" data-d="NORMAL">NORMAL</button>
+      <button class="diff-btn" data-d="HARD">HARD</button>
+    </div>
+    <button class="btn-primary" id="start-btn">START GAME</button>
+  </div>
 </div>
 
-<canvas id="game"></canvas>
+<!-- ═══════════════ MAIN APP ══════════════════════ -->
+<div id="app" style="display:none">
 
-<script src="game.js"></script>
+  <!-- Topbar -->
+  <div id="topbar">
+    <span class="logo">🏪 SUPERMART</span>
+    <div class="stat-pill"><span class="lbl">$</span><span class="val" id="hud-money">5000</span></div>
+    <div class="stat-pill"><span class="lbl">DAY</span><span class="val" id="hud-day">1</span></div>
+    <div class="stat-pill"><span class="lbl">REP</span><span class="val" id="hud-rep">50</span></div>
+    <div class="stat-pill"><span class="lbl">LEVEL</span><span class="val" id="hud-level">Corner Shop</span></div>
+    <div class="stat-pill"><span class="lbl">CUSTOMERS</span><span class="val" id="hud-cust">0</span></div>
+    <div class="rush-badge" id="rush-badge">⚡ RUSH HOUR</div>
+    <span id="time-display">08:00</span>
+  </div>
+
+  <!-- Left panel: build tools + employees -->
+  <div id="left-panel">
+    <div class="panel-title">BUILD TOOLS</div>
+    <button class="tool-btn active" data-tool="VIEW"      id="btn-view">    <span class="icon">👁</span> View</button>
+    <button class="tool-btn"        data-tool="FLOOR"     id="btn-floor">   <span class="icon">⬜</span> Floor</button>
+    <button class="tool-btn"        data-tool="PATH"      id="btn-path">    <span class="icon">🟩</span> Path</button>
+    <button class="tool-btn"        data-tool="shelf_small" id="btn-shelf"> <span class="icon">📦</span> Small Shelf ($150)</button>
+    <button class="tool-btn"        data-tool="shelf_large" id="btn-shelf2"><span class="icon">🗄</span> Large Shelf ($300)</button>
+    <button class="tool-btn"        data-tool="checkout"  id="btn-checkout"><span class="icon">🖥</span> Checkout ($300)</button>
+    <button class="tool-btn"        data-tool="plant"     id="btn-plant">   <span class="icon">🌿</span> Plant ($80)</button>
+    <button class="tool-btn"        data-tool="camera"    id="btn-camera">  <span class="icon">📷</span> Camera ($200)</button>
+    <button class="tool-btn"        data-tool="DELETE"    id="btn-delete">  <span class="icon">🗑</span> Delete</button>
+    <button class="tool-btn"        id="btn-rotate">                        <span class="icon">🔄</span> Rotate</button>
+
+    <div class="panel-title" style="margin-top:8px">EMPLOYEES</div>
+    <button class="tool-btn hire-btn" data-hire="CASHIER">  + Cashier  ($80/d)</button>
+    <button class="tool-btn hire-btn" data-hire="RESTOCKER">+ Restocker($70/d)</button>
+    <button class="tool-btn hire-btn" data-hire="CLEANER">  + Cleaner  ($60/d)</button>
+    <button class="tool-btn hire-btn" data-hire="MANAGER">  + Manager  ($150/d)</button>
+
+    <div class="panel-title" style="margin-top:8px">ROSTER</div>
+    <div id="emp-roster"></div>
+
+    <div class="panel-title" style="margin-top:8px">DELIVERY</div>
+    <button class="tool-btn" id="btn-deliver">🚚 Order Stock ($auto)</button>
+    <div id="delivery-status" style="font-size:0.65rem;color:var(--muted);padding:4px 8px">No trucks in transit</div>
+  </div>
+
+  <!-- Canvas -->
+  <div id="canvas-wrap">
+    <canvas id="game-canvas"></canvas>
+  </div>
+
+  <!-- Right panel: economy + upgrades -->
+  <div id="right-panel">
+    <div class="panel-title">REPUTATION</div>
+    <div class="rep-bar-wrap"><div class="rep-bar" id="rep-bar" style="width:50%"></div></div>
+    <div style="font-size:0.65rem;color:var(--muted);margin-top:2px" id="rep-label">50 / 100</div>
+
+    <div class="panel-title">PRICING</div>
+    <div id="price-controls"></div>
+
+    <div class="panel-title">FINANCES</div>
+    <div id="finances" style="font-size:0.68rem;line-height:1.8">
+      <div>Revenue today: <span id="fin-rev" style="color:var(--accent)">$0</span></div>
+      <div>Expenses today: <span id="fin-exp" style="color:var(--danger)">$0</span></div>
+      <div>Last profit: <span id="fin-profit" style="color:var(--accent3)">$0</span></div>
+    </div>
+
+    <div class="panel-title">UPGRADES</div>
+    <div id="upgrades-list"></div>
+  </div>
+
+  <!-- Bottom: chart + log -->
+  <div id="bottombar">
+    <div id="chart-wrap"><span style="font-size:0.65rem;color:var(--muted);align-self:center;margin-right:8px">PROFIT</span></div>
+    <div id="log-panel"><div class="panel-title" style="font-size:0.8rem">EVENT LOG</div></div>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     LOAD ALL 5 GAME SCRIPTS
+     index.html is the brain — it loads each module in dependency order,
+     then wires them together and starts the engine.
+     ════════════════════════════════════════════════════════════════════ -->
+<script src="GameManager.js"></script>
+<script src="StoreBuilder.js"></script>
+<script src="CustomerAI.js"></script>
+<script src="EmployeeSystem.js"></script>
+<script src="EconomySystem.js"></script>
+
+<script>
+// ════════════════════════════════════════════════════════════════════════════
+// CENTRAL BRAIN — Bootstraps, connects and renders all 5 systems
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── Canvas renderer ──────────────────────────────────────────────────────────
+class Renderer {
+  constructor(canvas, gameManager) {
+    this.canvas      = canvas;
+    this.ctx         = canvas.getContext('2d');
+    this.gm          = gameManager;
+    this.tileSize    = 20;
+    this.camX        = 0;
+    this.camY        = 0;
+    this.zoom        = 1;
+    this._drag       = null;
+
+    this._resize();
+    window.addEventListener('resize', () => this._resize());
+    this._bindInput();
+  }
+
+  _resize() {
+    const wrap = this.canvas.parentElement;
+    this.canvas.width  = wrap.clientWidth;
+    this.canvas.height = wrap.clientHeight;
+  }
+
+  // ── Main render ────────────────────────────────────────────────────────────
+  render(delta) {
+    const ctx = this.ctx;
+    const W   = this.canvas.width;
+    const H   = this.canvas.height;
+    const ts  = this.tileSize * this.zoom;
+    const sb  = this.gm.storeBuilder;
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Draw background noise
+    ctx.fillStyle = '#0d0f14';
+    ctx.fillRect(0, 0, W, H);
+
+    if (!sb || !sb.grid) return;
+
+    // ── Draw grid ──────────────────────────────────────────────────────────
+    const startCol = Math.max(0, Math.floor(-this.camX / ts));
+    const startRow = Math.max(0, Math.floor(-this.camY / ts));
+    const endCol   = Math.min(sb.cols, startCol + Math.ceil(W / ts) + 1);
+    const endRow   = Math.min(sb.rows, startRow + Math.ceil(H / ts) + 1);
+
+    for (let y = startRow; y < endRow; y++) {
+      for (let x = startCol; x < endCol; x++) {
+        const cell = sb.grid[y][x];
+        const px   = this.camX + x * ts;
+        const py   = this.camY + y * ts;
+
+        // Skip truly empty tiles unless they are expansion zones
+        const color = TILE_META[cell.base]?.color ?? '#0d0f14';
+        ctx.fillStyle = color;
+        ctx.fillRect(px, py, ts - 1, ts - 1);
+
+        // Dirty overlay
+        if (cell.dirty) {
+          ctx.fillStyle = 'rgba(100,60,0,0.4)';
+          ctx.fillRect(px, py, ts - 1, ts - 1);
+        }
+
+        // Secured overlay (camera range)
+        if (cell.secured && this.gm.state !== 'BUILD_MODE') {
+          ctx.fillStyle = 'rgba(0,50,200,0.05)';
+          ctx.fillRect(px, py, ts - 1, ts - 1);
+        }
+
+        // Grid line
+        ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+        ctx.strokeRect(px, py, ts - 1, ts - 1);
+
+        // Object label (if large enough tile)
+        if (ts >= 16 && cell.object && cell.object.x === x && cell.object.y === y) {
+          ctx.fillStyle = 'rgba(255,255,255,0.7)';
+          ctx.font      = `${Math.max(8, ts * 0.45)}px DM Mono, monospace`;
+          ctx.textAlign = 'center';
+          ctx.fillText(
+            this._objectIcon(cell.object),
+            px + ts * cell.object.w / 2,
+            py + ts * cell.object.h / 2 + 4
+          );
+
+          // Stock bar for shelves
+          if (cell.object.def?.tile === TILE.SHELF && cell.object.maxStock > 0) {
+            const frac = cell.object.stock / cell.object.maxStock;
+            ctx.fillStyle = frac > 0.5 ? '#00e5a0' : frac > 0.2 ? '#f7c559' : '#e63946';
+            ctx.fillRect(px + 2, py + ts * cell.object.h - 4, (ts * cell.object.w - 4) * frac, 3);
+          }
+        }
+      }
+    }
+
+    // ── Draw expansion zones ──────────────────────────────────────────────
+    sb.expansionZones.forEach(zone => {
+      if (!zone.locked) return;
+      const px = this.camX + zone.x * ts;
+      const py = this.camY + zone.y * ts;
+      const pw = zone.w * ts;
+      const ph = zone.h * ts;
+      ctx.fillStyle   = 'rgba(255,107,53,0.08)';
+      ctx.fillRect(px, py, pw, ph);
+      ctx.strokeStyle = '#ff6b35';
+      ctx.lineWidth   = 1;
+      ctx.setLineDash([4,4]);
+      ctx.strokeRect(px, py, pw, ph);
+      ctx.setLineDash([]);
+      ctx.fillStyle   = '#ff6b35';
+      ctx.font        = `${Math.max(10, ts * 0.7)}px Bebas Neue, sans-serif`;
+      ctx.textAlign   = 'center';
+      ctx.fillText(`🔒 ${zone.label}`, px + pw/2, py + ph/2);
+    });
+
+    // ── Hover highlight ─────────────────────────────────────────────────────
+    if (sb.hoverCell && this.gm.state === 'BUILD_MODE') {
+      const { x, y } = sb.hoverCell;
+      ctx.fillStyle   = sb.isValidHover
+        ? 'rgba(0,229,160,0.3)' : 'rgba(230,57,70,0.3)';
+      ctx.strokeStyle = sb.isValidHover ? '#00e5a0' : '#e63946';
+      ctx.lineWidth   = 1.5;
+
+      const obj = sb.selectedObj ? OBJECTS[sb.selectedObj] : null;
+      const { w, h } = obj ? sb._rotatedSize(obj.w, obj.h, sb.rotation) : { w:1, h:1 };
+      ctx.fillRect(this.camX + x*ts, this.camY + y*ts, w*ts - 1, h*ts - 1);
+      ctx.strokeRect(this.camX + x*ts, this.camY + y*ts, w*ts - 1, h*ts - 1);
+    }
+
+    // ── Draw customers ─────────────────────────────────────────────────────
+    const customerData = this.gm.customerAI.getRenderData();
+    customerData.forEach(c => {
+      const px = this.camX + c.x * ts;
+      const py = this.camY + c.y * ts;
+      const r  = ts * 0.35;
+
+      ctx.beginPath();
+      ctx.arc(px + ts/2, py + ts/2, r, 0, Math.PI*2);
+      ctx.fillStyle = c.isAngry ? '#e63946' : c.color;
+      ctx.fill();
+
+      // Patience ring
+      ctx.beginPath();
+      ctx.arc(px + ts/2, py + ts/2, r + 2, -Math.PI/2, -Math.PI/2 + Math.PI*2*c.patience);
+      ctx.strokeStyle = c.patience > 0.5 ? '#00e5a0' : '#f7c559';
+      ctx.lineWidth   = 1.5;
+      ctx.stroke();
+
+      if (c.isAngry) {
+        ctx.font      = `${ts*0.5}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText('💢', px + ts/2, py - 2);
+      }
+    });
+
+    // ── Draw employees ─────────────────────────────────────────────────────
+    const employeeData = this.gm.employeeSystem.getRenderData();
+    employeeData.forEach(e => {
+      const px = this.camX + e.x * ts;
+      const py = this.camY + e.y * ts;
+
+      ctx.fillStyle = e.color;
+      ctx.fillRect(px + ts*0.2, py + ts*0.2, ts*0.6, ts*0.6);
+
+      // Type icon
+      ctx.font      = `${ts*0.45}px sans-serif`;
+      ctx.textAlign = 'center';
+      const icons   = { CASHIER:'💁', RESTOCKER:'📦', CLEANER:'🧹', MANAGER:'⭐' };
+      ctx.fillText(icons[e.type] ?? '👤', px + ts/2, py + ts/2 + 4);
+
+      // Energy bar at top
+      ctx.fillStyle = '#000';
+      ctx.fillRect(px, py, ts - 1, 2);
+      ctx.fillStyle = e.energy > 50 ? '#00e5a0' : '#f7c559';
+      ctx.fillRect(px, py, (ts - 1) * (e.energy / 100), 2);
+    });
+
+    // ── Night overlay ──────────────────────────────────────────────────────
+    if (!this.gm.isStoreOpen) {
+      ctx.fillStyle = 'rgba(0,0,30,0.45)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle   = 'rgba(200,216,232,0.6)';
+      ctx.font        = 'bold 1rem DM Mono, monospace';
+      ctx.textAlign   = 'center';
+      ctx.fillText('🌙 STORE CLOSED', W/2, 30);
+    }
+  }
+
+  _objectIcon(obj) {
+    const m = { shelf_small:'📦', shelf_large:'🗄', checkout:'🖥', storage_room:'🏭',
+                plant:'🌿', banner:'🏷', camera:'📷' };
+    return m[obj.key] ?? '?';
+  }
+
+  // ── Input binding ─────────────────────────────────────────────────────────
+  _bindInput() {
+    const canvas = this.canvas;
+
+    // Mouse move → hover
+    canvas.addEventListener('mousemove', e => {
+      const { gx, gy } = this._screenToGrid(e.offsetX, e.offsetY);
+      if (this.gm.state === 'BUILD_MODE') {
+        this.gm.storeBuilder.setHover(gx, gy);
+      }
+      // Pan
+      if (this._drag) {
+        this.camX += e.movementX;
+        this.camY += e.movementY;
+      }
+    });
+
+    // Click → place / delete
+    canvas.addEventListener('click', e => {
+      if (this._drag) return;
+      const { gx, gy } = this._screenToGrid(e.offsetX, e.offsetY);
+      const sb  = this.gm.storeBuilder;
+
+      if (this.gm.state === 'BUILD_MODE') {
+        if (window._currentTool === 'DELETE') {
+          sb.delete(gx, gy);
+        } else {
+          sb.place(gx, gy);
+        }
+      }
+    });
+
+    // Middle mouse drag
+    canvas.addEventListener('mousedown', e => { if (e.button === 1 || e.button === 2) this._drag = true; });
+    canvas.addEventListener('mouseup',   e => { this._drag = false; });
+    canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+    // Wheel zoom
+    canvas.addEventListener('wheel', e => {
+      const factor = e.deltaY < 0 ? 1.1 : 0.9;
+      this.zoom    = Math.max(0.5, Math.min(3, this.zoom * factor));
+      e.preventDefault();
+    }, { passive: false });
+  }
+
+  _screenToGrid(sx, sy) {
+    const ts = this.tileSize * this.zoom;
+    return {
+      gx: Math.floor((sx - this.camX) / ts),
+      gy: Math.floor((sy - this.camY) / ts),
+    };
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// UI CONTROLLER — Wires DOM to game systems
+// ════════════════════════════════════════════════════════════════════════════
+
+class UIController {
+  constructor(gm) {
+    this.gm      = gm;
+    this._logMax = 80;
+  }
+
+  init() {
+    this._buildPriceControls();
+    this._buildUpgradeList();
+    this._bindToolButtons();
+    this._bindHireButtons();
+    this._bindOtherButtons();
+    this._subscribeEvents();
+
+    // Tick UI at 10fps
+    setInterval(() => this._updateHUD(), 100);
+  }
+
+  // ── HUD update ────────────────────────────────────────────────────────────
+  _updateHUD() {
+    const gm  = this.gm;
+    const eco = gm.economySystem;
+
+    document.getElementById('hud-money').textContent = '$' + Math.floor(eco.money).toLocaleString();
+    document.getElementById('hud-day').textContent   = gm.currentDay;
+    document.getElementById('hud-rep').textContent   = Math.round(gm.reputation);
+    document.getElementById('hud-level').textContent = gm.currentLevel.name;
+    document.getElementById('hud-cust').textContent  = gm.customerAI.activeCustomers.length;
+    document.getElementById('time-display').textContent = gm.getTimeString();
+
+    const rushBadge = document.getElementById('rush-badge');
+    rushBadge.classList.toggle('active', gm.isRushHour());
+
+    document.getElementById('rep-bar').style.width = gm.reputation + '%';
+    document.getElementById('rep-label').textContent = Math.round(gm.reputation) + ' / 100';
+
+    const fin = eco.getFinancialSummary();
+    document.getElementById('fin-rev').textContent    = '$' + Math.floor(eco.dailyRevenue);
+    document.getElementById('fin-exp').textContent    = '$' + Math.floor(eco.dailyExpenses);
+    document.getElementById('fin-profit').textContent = '$' + Math.floor(fin.lastDayProfit);
+
+    this._updateEmployeeRoster();
+    this._updateProfitChart(fin.dailyHistory);
+    this._updateDeliveryStatus();
+  }
+
+  _updateEmployeeRoster() {
+    const roster = document.getElementById('emp-roster');
+    const emps   = this.gm.employeeSystem.employees;
+    if (emps.length === 0) { roster.innerHTML = '<div style="color:var(--muted);font-size:0.65rem;padding:4px">No staff hired</div>'; return; }
+    roster.innerHTML = emps.map(e =>
+      `<div class="emp-entry">
+        <div class="ename">${e.type} <span style="color:var(--muted)">Lv.${e.skillLevel}</span></div>
+        <div style="color:var(--muted)">${e.state}</div>
+        <div class="energy-bar"><div class="energy-fill" style="width:${e.energy}%"></div></div>
+      </div>`
+    ).join('');
+  }
+
+  _updateProfitChart(history) {
+    const wrap = document.getElementById('chart-wrap');
+    if (!history || history.length === 0) return;
+    const maxAbs = Math.max(1, ...history.map(d => Math.abs(d.profit)));
+    const maxH   = 80;
+
+    const bars = history.map(d => {
+      const h     = Math.max(2, Math.abs(d.profit) / maxAbs * maxH);
+      const color = d.profit >= 0 ? '#00e5a0' : '#e63946';
+      return `<div class="chart-bar-wrap">
+        <div class="chart-bar" style="height:${h}px;background:${color};width:100%"></div>
+        <div class="chart-lbl">D${d.day}</div>
+      </div>`;
+    });
+
+    // Re-render keeping the label
+    wrap.innerHTML = `<span style="font-size:0.65rem;color:var(--muted);align-self:center;margin-right:8px;white-space:nowrap">PROFIT 7D</span>` + bars.join('');
+  }
+
+  _updateDeliveryStatus() {
+    const truck  = this.gm.economySystem.trucks[0];
+    const el     = document.getElementById('delivery-status');
+    if (truck.inTransit) {
+      const remaining = Math.ceil(truck.arrivalTime - this.gm.gameTime);
+      el.textContent = `🚛 Truck arriving in ~${remaining} min`;
+      el.style.color = 'var(--accent3)';
+    } else {
+      el.textContent = 'No trucks in transit';
+      el.style.color = 'var(--muted)';
+    }
+  }
+
+  // ── Event log ─────────────────────────────────────────────────────────────
+  _log(msg, type = '') {
+    const panel = document.getElementById('log-panel');
+    const div   = document.createElement('div');
+    div.className    = `log-entry ${type}`;
+    div.textContent  = `${this.gm.getTimeString()} ${msg}`;
+    panel.appendChild(div);
+    // Keep log trimmed
+    while (panel.children.length > this._logMax + 1) panel.children[1].remove();
+    panel.scrollTop = panel.scrollHeight;
+  }
+
+  // ── Build price sliders ───────────────────────────────────────────────────
+  _buildPriceControls() {
+    const eco     = this.gm.economySystem;
+    const wrap    = document.getElementById('price-controls');
+    wrap.innerHTML = '';
+
+    Object.entries(PRODUCTS).forEach(([cat, meta]) => {
+      const row = document.createElement('div');
+      row.className = 'price-row';
+      row.innerHTML = `
+        <span>${meta.label}</span>
+        <input type="range" min="50" max="300" value="100" step="5" id="price-${cat}">
+        <span class="price-val" id="pv-${cat}">×1.0</span>
+      `;
+      wrap.appendChild(row);
+
+      row.querySelector(`#price-${cat}`).addEventListener('input', e => {
+        const mult = parseInt(e.target.value) / 100;
+        eco.setPlayerPrice(cat, mult);
+        document.getElementById(`pv-${cat}`).textContent = `×${mult.toFixed(1)}`;
+      });
+    });
+  }
+
+  // ── Build upgrades panel ──────────────────────────────────────────────────
+  _buildUpgradeList() {
+    const eco  = this.gm.economySystem;
+    const wrap = document.getElementById('upgrades-list');
+    wrap.innerHTML = '';
+
+    eco.upgrades.forEach(u => {
+      const div = document.createElement('div');
+      div.className = `upgrade-item${u.applied ? ' bought' : ''}`;
+      div.id        = `upg-${u.id}`;
+      div.innerHTML = `
+        <div style="display:flex;justify-content:space-between">
+          <span>${u.label}</span>
+          <span class="u-cost">$${u.cost}</span>
+        </div>
+        <div class="u-effect">${u.effect}</div>
+      `;
+      if (!u.applied) {
+        div.addEventListener('click', () => {
+          if (eco.buyUpgrade(u.id)) {
+            div.classList.add('bought');
+            this._log(`Upgrade: ${u.label}`, 'good');
+          } else {
+            this._log('Not enough money!', 'bad');
+          }
+        });
+      }
+      wrap.appendChild(div);
+    });
+  }
+
+  // ── Build tool buttons ─────────────────────────────────────────────────────
+  _bindToolButtons() {
+    const gm   = this.gm;
+    const sb   = gm.storeBuilder;
+    window._currentTool = 'VIEW';
+
+    document.querySelectorAll('[data-tool]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-tool]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        const tool = btn.dataset.tool;
+        window._currentTool = tool;
+
+        if (tool === 'VIEW' || tool === 'DELETE') {
+          sb.selectedObj  = null;
+          sb.selectedTool = null;
+          gm.state = tool === 'DELETE' ? 'BUILD_MODE' : 'PLAYING';
+        } else if (OBJECTS[tool]) {
+          sb.selectObject(tool);
+          gm.state = 'BUILD_MODE';
+        } else {
+          // Tile type from constant name
+          const tileKey = Object.keys(TILE).find(k => TILE[k] === parseInt(tool));
+          if (tileKey !== undefined) sb.selectTile(parseInt(tool));
+          else {
+            // Map label → TILE constant
+            const map = { FLOOR: TILE.FLOOR, PATH: TILE.PATH };
+            sb.selectTile(map[tool] ?? TILE.FLOOR);
+          }
+          gm.state = 'BUILD_MODE';
+        }
+      });
+    });
+  }
+
+  // ── Hire buttons ──────────────────────────────────────────────────────────
+  _bindHireButtons() {
+    document.querySelectorAll('[data-hire]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const type = btn.dataset.hire;
+        const emp  = this.gm.employeeSystem.hire(type);
+        if (emp) this._log(`Hired ${type}`, 'good');
+        else     this._log('Cannot hire — check funds/level cap', 'bad');
+      });
+    });
+  }
+
+  // ── Other buttons ─────────────────────────────────────────────────────────
+  _bindOtherButtons() {
+    document.getElementById('btn-rotate').addEventListener('click', () => {
+      this.gm.storeBuilder.rotate();
+    });
+
+    document.getElementById('btn-deliver').addEventListener('click', () => {
+      // Order one of each category
+      const cargo = Object.keys(PRODUCTS).map(cat => ({ category: cat, amount: 10 }));
+      const ok    = this.gm.economySystem.orderDelivery(cargo);
+      if (ok) this._log('Delivery ordered!', 'good');
+      else    this._log('Truck busy or low funds', 'warn');
+    });
+  }
+
+  // ── Subscribe to game events ──────────────────────────────────────────────
+  _subscribeEvents() {
+    const gm = this.gm;
+
+    gm.on('storeOpened',     ()  => this._log('🔓 Store opened!', 'good'));
+    gm.on('storeClosed',     ()  => this._log('🔒 Store closed.', ''));
+    gm.on('newDay',          d   => this._log(`☀️ Day ${d.day} begins`, 'good'));
+    gm.on('storeLevelUp',    d   => this._log(`🎉 Level up! → ${d.level.name}`, 'good'));
+    gm.on('reputationChanged', d => {
+      if (d.delta > 0) this._log(`⭐ Rep +${d.delta.toFixed(1)} (${d.source})`, 'good');
+      if (d.delta < 0) this._log(`⬇️ Rep ${d.delta.toFixed(1)} (${d.source})`, 'bad');
+    });
+    gm.on('employeeHired',   d   => this._log(`👤 ${d.employee.type} hired`, ''));
+    gm.on('employeeLevelUp', d   => this._log(`📈 ${d.employee.type} levelled up!`, 'good'));
+    gm.on('deliveryOrdered', d   => this._log(`🚚 Delivery en route ($${Math.floor(d.cost)})`, 'warn'));
+    gm.on('deliveryArrived', ()  => this._log('📦 Delivery arrived!', 'good'));
+    gm.on('upgradeApplied',  d   => this._log(`🔧 Upgrade: ${d.upgrade.label}`, 'good'));
+    gm.on('gameOver',        d   => {
+      this._log(`💀 GAME OVER — ${d.reason}`, 'bad');
+      setTimeout(() => {
+        document.body.insertAdjacentHTML('beforeend',
+          `<div class="overlay"><div class="modal">
+            <h1 style="color:var(--danger)">BANKRUPT</h1>
+            <p>Your store ran out of money on Day ${gm.currentDay}.<br>Average satisfaction: ${Math.round(gm.stats.averageSatisfaction)}</p>
+            <button class="btn-primary" onclick="location.reload()">TRY AGAIN</button>
+          </div></div>`);
+      }, 500);
+    });
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// BOOTSTRAP — Entry point: instantiate systems, inject dependencies, start
+// ════════════════════════════════════════════════════════════════════════════
+
+let selectedDifficulty = 'NORMAL';
+
+// Difficulty selector
+document.querySelectorAll('.diff-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('sel'));
+    btn.classList.add('sel');
+    selectedDifficulty = btn.dataset.d;
+  });
+});
+
+document.getElementById('start-btn').addEventListener('click', () => {
+  document.getElementById('start-overlay').style.display = 'none';
+  document.getElementById('app').style.display           = 'grid';
+  bootstrap(selectedDifficulty);
+});
+
+function bootstrap(difficulty) {
+  // 1) Instantiate all 5 systems
+  const gameManager    = new GameManager();
+  const storeBuilder   = new StoreBuilder(30, 30);
+  const economySystem  = new EconomySystem(gameManager);
+  const employeeSystem = new EmployeeSystem(gameManager);
+  const customerAI     = new CustomerAI(gameManager);
+
+  // 2) Cross-link StoreBuilder ↔ GameManager for money calls
+  storeBuilder.gameManager = gameManager;
+
+  // 3) Renderer
+  const canvas   = document.getElementById('game-canvas');
+  const renderer = new Renderer(canvas, gameManager);
+
+  // 4) Inject all systems into GameManager (central hub)
+  gameManager.injectSystems({
+    storeBuilder,
+    customerAI,
+    employeeSystem,
+    economySystem,
+    renderer,
+  });
+
+  // 5) UI controller
+  const ui = new UIController(gameManager);
+  ui.init();
+
+  // 6) START
+  gameManager.startGame(difficulty);
+
+  // Centre camera on the starter room
+  renderer.camX = canvas.width  / 2 - 5 * renderer.tileSize;
+  renderer.camY = canvas.height / 2 - 5 * renderer.tileSize;
+
+  // Auto-order initial delivery after 2 seconds
+  setTimeout(() => {
+    const cargo = [
+      { category:'basics',    amount:20 },
+      { category:'snacks',    amount:16 },
+      { category:'beverages', amount:12 },
+    ];
+    economySystem.orderDelivery(cargo);
+  }, 2000);
+
+  console.log('[index.html] ✅ All 5 systems live. Game running.');
+}
+</script>
 </body>
 </html>
