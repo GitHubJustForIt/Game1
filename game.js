@@ -1,141 +1,200 @@
-// game.js
-const canvas = document.getElementById('gameCanvas');
+const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
+const TILE = 32;
+const ROWS = 20, COLS = 25;
 
-const TILE_SIZE = 40;
-const GRID_WIDTH = 20;
-const GRID_HEIGHT = 15;
+let money = 1500;
+let stock = 50;
+let buildMode = null;
+let grid = Array(ROWS).fill().map(() => Array(COLS).fill(null));
+let entities = []; // Kunden & Mitarbeiter
 
-class Game {
-    constructor() {
-        this.money = 1000;
-        this.grid = Array(GRID_HEIGHT).fill().map(() => Array(GRID_WIDTH).fill(null));
-        this.buildMode = null;
-        this.customers = [];
-        this.monthTimer = 0;
-        this.totalSeconds = 0;
+const COLORS = {
+    path: '#334155',
+    shelf: '#f97316',
+    register: '#0ea5e9',
+    warehouse: '#64748b'
+};
 
-        this.init();
-    }
+// Initiales Setup: Lager und Eingang
+grid[2][2] = { type: 'warehouse' };
+grid[0][12] = { type: 'path' }; // Eingangspunkt
 
-    init() {
-        canvas.width = GRID_WIDTH * TILE_SIZE;
-        canvas.height = GRID_HEIGHT * TILE_SIZE;
+function setMode(m) { 
+    buildMode = m; 
+    document.querySelectorAll('.build').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+}
 
-        // Start-Eingang
-        this.grid[7][0] = { type: 'entrance' };
+canvas.width = COLS * TILE;
+canvas.height = ROWS * TILE;
 
-        // Mouse Events
-        canvas.addEventListener('mousedown', (e) => this.handleClicks(e));
-        
-        // Loop starten
-        setInterval(() => this.updateTick(), 1000);
-        this.render();
-        this.loadGame();
-    }
+// --- LOGIK ---
 
-    setBuildMode(mode) {
-        this.buildMode = mode;
-        document.getElementById('status-msg').innerText = "Modus: " + mode;
-    }
+function handleInput(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.floor((e.clientX - rect.left) / TILE);
+    const y = Math.floor((e.clientY - rect.top) / TILE);
 
-    handleClicks(e) {
-        const rect = canvas.getBoundingClientRect();
-        const x = Math.floor((e.clientX - rect.left) / TILE_SIZE);
-        const y = Math.floor((e.clientY - rect.top) / TILE_SIZE);
-
-        if (this.buildMode === 'delete') {
-            this.grid[y][x] = null;
-        } else if (this.buildMode) {
-            const costs = { shelf: 50, register: 150 };
-            if (this.money >= costs[this.buildMode]) {
-                this.money -= costs[this.buildMode];
-                this.grid[y][x] = { type: this.buildMode, inventory: 10 };
-                this.updateUI();
-            }
+    if (buildMode === 'delete') {
+        grid[y][x] = null;
+    } else if (buildMode === 'path') {
+        if (money >= 5) { grid[y][x] = { type: 'path' }; money -= 5; }
+    } else if (buildMode) {
+        // Regale/Kassen dürfen NUR auf Pfaden stehen (oder daneben, hier zur Vereinfachung: auf Pfad bauen)
+        const cost = buildMode === 'shelf' ? 50 : 150;
+        if (money >= cost) {
+            grid[y][x] = { type: buildMode, inv: 0 };
+            money -= cost;
         }
     }
+    updateUI();
+}
 
-    updateTick() {
-        this.totalSeconds++;
-        this.monthTimer++;
+canvas.addEventListener('mousedown', handleInput);
 
-        // Monatssytem (2 Minuten = 120 Sek)
-        if (this.monthTimer >= 120) {
-            this.processEndOfMonth();
-            this.monthTimer = 0;
-        }
-
-        // Kunden spawnen (Chance pro Sekunde)
-        if (Math.random() > 0.7) {
-            this.customers.push(new Customer(this));
-        }
-
-        this.customers.forEach((c, index) => {
-            c.update();
-            if (c.isFinished) this.customers.splice(index, 1);
-        });
-
-        this.updateUI();
-    }
-
-    processEndOfMonth() {
-        const rent = 200;
-        this.money -= rent;
-        alert("Monatsende! Miete abgezogen: 200$");
-        if (this.money < 0) alert("GAME OVER!");
-    }
-
-    updateUI() {
-        document.getElementById('money-display').innerText = this.money;
-        document.getElementById('day-display').innerText = Math.floor(this.totalSeconds / 10) + 1;
-    }
-
-    render() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // Grid zeichnen
-        for (let y = 0; y < GRID_HEIGHT; y++) {
-            for (let x = 0; x < GRID_WIDTH; x++) {
-                ctx.strokeStyle = "#333";
-                ctx.strokeRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-
-                const tile = this.grid[y][x];
-                if (tile) {
-                    if (tile.type === 'entrance') ctx.fillStyle = "#2ecc71";
-                    if (tile.type === 'shelf') ctx.fillStyle = "#d35400";
-                    if (tile.type === 'register') ctx.fillStyle = "#2980b9";
-                    ctx.fillRect(x * TILE_SIZE + 2, y * TILE_SIZE + 2, TILE_SIZE - 4, TILE_SIZE - 4);
-                }
-            }
-        }
-
-        // Kunden zeichnen
-        this.customers.forEach(c => c.draw(ctx));
-
-        requestAnimationFrame(() => this.render());
-    }
-
-    saveGame() {
-        const data = { money: this.money, grid: this.grid };
-        localStorage.setItem('tycoonSave', JSON.stringify(data));
-        document.getElementById('status-msg').innerText = "Gespeichert!";
-    }
-
-    loadGame() {
-        const saved = localStorage.getItem('tycoonSave');
-        if (saved) {
-            const data = JSON.parse(saved);
-            this.money = data.money;
-            this.grid = data.grid;
-            this.updateUI();
-        }
-    }
-
-    resetGame() {
-        localStorage.removeItem('tycoonSave');
-        location.reload();
+function orderTruck() {
+    if (money >= 200) {
+        money -= 200;
+        stock += 100;
+        updateUI();
+        log("LKW geliefert!");
     }
 }
 
-const game = new Game();
+function updateUI() {
+    document.getElementById('money').innerText = money;
+    document.getElementById('stock').innerText = stock;
+}
+
+function log(m) { document.getElementById('msg').innerText = m; }
+
+// --- ENTITIES (Kunden & Mitarbeiter) ---
+
+class Entity {
+    constructor(type) {
+        this.type = type; // 'customer' oder 'worker'
+        this.x = 12 * TILE; this.y = 0;
+        this.speed = type === 'customer' ? 4 : 3;
+        this.target = null;
+        this.state = 'idle';
+        this.inventory = 0;
+    }
+
+    update() {
+        if (!this.target) this.findNewTarget();
+        else this.move();
+    }
+
+    findNewTarget() {
+        if (this.type === 'customer') {
+            if (this.state === 'idle') {
+                this.target = this.getRandomTile('shelf');
+                this.state = 'shopping';
+            } else if (this.state === 'shopping') {
+                this.target = this.getRandomTile('register');
+                this.state = 'paying';
+            } else if (this.state === 'paying') {
+                this.target = { x: 12, y: 0 }; // Ausgang
+                this.state = 'leaving';
+            } else {
+                entities = entities.filter(e => e !== this);
+                money += 20; 
+            }
+        } 
+        
+        if (this.type === 'worker') {
+            if (this.inventory === 0) {
+                this.target = this.getRandomTile('warehouse');
+                this.state = 'loading';
+            } else {
+                this.target = this.getRandomTile('shelf');
+                this.state = 'restocking';
+            }
+        }
+    }
+
+    move() {
+        const tx = this.target.x * TILE;
+        const ty = this.target.y * TILE;
+        
+        if (this.x < tx) this.x += this.speed;
+        else if (this.x > tx) this.x -= this.speed;
+        
+        if (this.y < ty) this.y += this.speed;
+        else if (this.y > ty) this.y -= this.speed;
+
+        if (Math.abs(this.x - tx) < 5 && Math.abs(this.y - ty) < 5) {
+            this.interact();
+            this.target = null;
+        }
+    }
+
+    interact() {
+        if (this.state === 'loading' && stock > 0) {
+            stock -= 10; this.inventory = 10;
+        } else if (this.state === 'restocking') {
+            this.inventory = 0; // Regal aufgefüllt (vereinfacht)
+        }
+    }
+
+    getRandomTile(type) {
+        let matches = [];
+        for(let y=0; y<ROWS; y++) 
+            for(let x=0; x<COLS; x++) 
+                if(grid[y][x]?.type === type) matches.push({x, y});
+        return matches.length ? matches[Math.floor(Math.random()*matches.length)] : null;
+    }
+
+    draw() {
+        ctx.fillStyle = this.type === 'customer' ? '#fbbf24' : '#a855f7';
+        ctx.beginPath();
+        ctx.arc(this.x + 16, this.y + 16, 10, 0, Math.PI*2);
+        ctx.fill();
+        // Sprechblase wenn leer
+        if(this.state === 'shopping' && this.type === 'customer') {
+            ctx.fillStyle = "white"; ctx.fillText("🛒", this.x, this.y);
+        }
+    }
+}
+
+function hireWorker() {
+    if (money >= 300) {
+        money -= 300;
+        entities.push(new Entity('worker'));
+        updateUI();
+    }
+}
+
+// --- GAME LOOP ---
+
+function loop() {
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Grid zeichnen
+    for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+            const tile = grid[y][x];
+            if (tile) {
+                ctx.fillStyle = COLORS[tile.type];
+                ctx.fillRect(x * TILE + 1, y * TILE + 1, TILE - 2, TILE - 2);
+                
+                // Waren-Anzeige bei Regalen
+                if (tile.type === 'shelf') {
+                    ctx.fillStyle = "white";
+                    ctx.font = "10px Arial";
+                    ctx.fillText("📦", x*TILE+5, y*TILE+20);
+                }
+            }
+        }
+    }
+
+    entities.forEach(e => { e.update(); e.draw(); });
+
+    if (Math.random() < 0.02) entities.push(new Entity('customer'));
+
+    requestAnimationFrame(loop);
+}
+
+loop();
