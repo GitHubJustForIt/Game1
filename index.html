@@ -1,21 +1,304 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>🧠 Globaler Chat</title>
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Phantasialand – Roblox</title>
+  <meta name="description" content="The most magical theme park on Roblox – book your exclusive session now." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;600;700&family=Lora:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="chat-container">
-    <h1>Globaler Chat 🌐</h1>
-    <ul id="messages"></ul>
-    <form id="chat-form">
-      <input id="chat-input" autocomplete="off" placeholder="Schreib etwas..." />
-      <button>Senden ➡️</button>
-    </form>
+
+  <!-- ══════════════ PARK STATUS BANNER ══════════════ -->
+  <div id="statusBanner">
+    <div class="status-inner">
+      <span class="status-dot" id="statusDot"></span>
+      <span id="statusText"></span>
+    </div>
+    <button class="lang-toggle" id="langToggle" title="Switch Language">
+      <i class="fa-solid fa-globe"></i>
+      <span id="langToggleLabel">DE</span>
+    </button>
   </div>
 
-  <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
-  <script src="client.js"></script>
+  <!-- ══════════════ NAVIGATION ══════════════ -->
+  <nav id="navbar">
+    <div class="nav-inner">
+      <div class="nav-logo">
+        <span class="logo-main" id="navLogoMain">Phantasialand</span>
+        <span class="logo-sub">Roblox</span>
+      </div>
+      <ul class="nav-links" id="navLinksList">
+        <li>
+          <a href="#" onclick="smoothScrollTo('hero'); return false;" data-i18n-link="navHome">
+            <i class="fa-solid fa-house"></i> <span data-i18n="navHome">Home</span>
+          </a>
+        </li>
+        <li>
+          <a href="#" onclick="smoothScrollTo('themenwelten'); return false;">
+            <i class="fa-solid fa-map"></i> <span data-i18n="navWorlds">Theme Worlds</span>
+          </a>
+        </li>
+        <li id="navBookLink">
+          <a href="#" onclick="smoothScrollTo('buchen'); return false;">
+            <i class="fa-solid fa-calendar-days"></i> <span data-i18n="navBook">Book</span>
+          </a>
+        </li>
+      </ul>
+      <button class="nav-cta" id="navCtaBtn" onclick="smoothScrollTo('buchen')">
+        <i class="fa-solid fa-ticket"></i>
+        <span data-i18n="navCta">Book Now</span>
+      </button>
+      <button class="nav-toggle" id="navToggle" aria-label="Open menu">
+        <i class="fa-solid fa-bars"></i>
+      </button>
+    </div>
+    <div class="nav-mobile" id="navMobile">
+      <a href="#" onclick="smoothScrollTo('hero'); closeMobileMenu(); return false;">
+        <i class="fa-solid fa-house"></i> <span data-i18n="navHome">Home</span>
+      </a>
+      <a href="#" onclick="smoothScrollTo('themenwelten'); closeMobileMenu(); return false;">
+        <i class="fa-solid fa-map"></i> <span data-i18n="navWorlds">Theme Worlds</span>
+      </a>
+      <a href="#" id="mobileBookLink" onclick="smoothScrollTo('buchen'); closeMobileMenu(); return false;">
+        <i class="fa-solid fa-calendar-days"></i> <span data-i18n="navBook">Book</span>
+      </a>
+    </div>
+  </nav>
+
+  <!-- ══════════════ HERO ══════════════ -->
+  <section id="hero">
+    <div class="hero-bg">
+      <canvas id="particleCanvas"></canvas>
+      <div class="hero-bg-img" id="heroBgImg"></div>
+      <div class="hero-overlay"></div>
+    </div>
+    <div class="hero-content">
+
+      <div class="hero-badge reveal-up" style="--delay:.1s">
+        <i class="fa-solid fa-star"></i>
+        <span data-i18n="heroBadge">Official Roblox Park</span>
+        <i class="fa-solid fa-star"></i>
+      </div>
+
+      <h1 class="hero-title reveal-up" style="--delay:.3s">
+        <span class="title-main" id="heroTitleMain">Phantasialand</span>
+        <span class="title-sub">Roblox</span>
+      </h1>
+
+      <p class="hero-sub reveal-up" style="--delay:.5s" id="heroSubText"></p>
+
+      <div class="hero-actions reveal-up" style="--delay:.7s" id="heroActions">
+        <!-- filled by app.js based on ticketSalesActive -->
+      </div>
+
+      <!-- Park Closed Notice (shown when !parkOpen) -->
+      <div class="park-closed-hero reveal-up" id="parkClosedHero" style="display:none; --delay:.7s">
+        <i class="fa-solid fa-moon"></i>
+        <span data-i18n="parkClosedHeroText">The park is currently closed. We look forward to welcoming you soon.</span>
+      </div>
+
+      <div class="hero-stats reveal-up" style="--delay:.9s">
+        <div class="stat">
+          <i class="fa-solid fa-users"></i>
+          <span class="stat-num">5</span>
+          <span class="stat-label" data-i18n="statPlayers">Players per Session</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat">
+          <i class="fa-solid fa-clock"></i>
+          <span class="stat-num" id="statDuration">30</span>
+          <span class="stat-label" data-i18n="statDuration">Minutes Playtime</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat">
+          <i class="fa-solid fa-map-location-dot"></i>
+          <span class="stat-num" id="statWorlds">6</span>
+          <span class="stat-label" data-i18n="statWorlds">Theme Worlds</span>
+        </div>
+      </div>
+    </div>
+    <div class="hero-scroll-indicator">
+      <i class="fa-solid fa-chevron-down"></i>
+    </div>
+  </section>
+
+  <!-- ══════════════ WAIT TIMES ══════════════ -->
+  <section id="wartezeiten" style="padding-top:3rem; padding-bottom:1rem;">
+    <div class="section-header reveal-up">
+      <span class="section-label">
+        <i class="fa-solid fa-gauge-high"></i>
+        <span data-i18n="waitLabel">Today</span>
+      </span>
+      <h2 class="section-title" data-i18n="waitTitle">Wait Times</h2>
+      <p class="section-desc" data-i18n="waitDesc">Current estimated wait times for our attractions.</p>
+    </div>
+    <div class="waittimes-legend reveal-up" style="--delay:.05s" id="waitLegend"></div>
+    <div class="waittimes-grid reveal-up" style="--delay:.1s" id="waitTimesGrid"></div>
+  </section>
+
+  <!-- ══════════════ DIVIDER ══════════════ -->
+  <div class="ornate-divider">
+    <div class="divider-line"></div>
+    <div class="divider-gem"><i class="fa-solid fa-crown"></i></div>
+    <div class="divider-line"></div>
+  </div>
+
+  <!-- ══════════════ THEME WORLDS ══════════════ -->
+  <section id="themenwelten">
+    <div class="section-header reveal-up">
+      <span class="section-label">
+        <i class="fa-solid fa-map"></i>
+        <span data-i18n="worldsLabel">Explore</span>
+      </span>
+      <h2 class="section-title" data-i18n="worldsTitle">Our Theme Worlds</h2>
+      <p class="section-desc" data-i18n="worldsDesc">Every area of the park tells a unique story – dive in and experience them all.</p>
+    </div>
+    <div class="worlds-grid" id="worldsGrid"></div>
+  </section>
+
+  <!-- ══════════════ TRAILER ══════════════ -->
+  <section id="trailer" style="padding-bottom:2rem; display:none;">
+    <div class="ornate-divider" style="margin-bottom:3rem; max-width:none; padding:0 2rem;">
+      <div class="divider-line"></div>
+      <div class="divider-gem"><i class="fa-solid fa-film"></i></div>
+      <div class="divider-line"></div>
+    </div>
+    <div class="section-header reveal-up">
+      <span class="section-label">
+        <i class="fa-solid fa-clapperboard"></i>
+        <span data-i18n="trailerLabel">Experience</span>
+      </span>
+      <h2 class="section-title" data-i18n="trailerTitle">Park Trailer</h2>
+      <p class="section-desc" data-i18n="trailerDesc">Get a first impression of the most magical Roblox park.</p>
+    </div>
+    <div class="trailer-wrap reveal-up" style="--delay:.15s">
+      <div class="trailer-frame-wrap">
+        <iframe id="trailerIframe" src="" title="Park Trailer" frameborder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen></iframe>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ DIVIDER ══════════════ -->
+  <div class="ornate-divider">
+    <div class="divider-line"></div>
+    <div class="divider-gem"><i class="fa-solid fa-ticket"></i></div>
+    <div class="divider-line"></div>
+  </div>
+
+  <!-- ══════════════ BOOKING ══════════════ -->
+  <section id="buchen">
+    <div class="section-header reveal-up" id="bookingHeader">
+      <span class="section-label">
+        <i class="fa-solid fa-calendar-days"></i>
+        <span data-i18n="bookLabel">Reservation</span>
+      </span>
+      <h2 class="section-title" data-i18n="bookTitle">Book a Session</h2>
+      <p class="section-desc" data-i18n="bookDesc">Pick your preferred date from the calendar and choose an available time slot.</p>
+    </div>
+
+    <!-- Tickets inactive notice -->
+    <div class="tickets-inactive-notice" id="ticketsInactiveNotice" style="display:none;">
+      <div class="tnotice-inner">
+        <i class="fa-solid fa-circle-pause"></i>
+        <p data-i18n="ticketSalesOff">Ticket sales are currently not available.</p>
+      </div>
+    </div>
+
+    <!-- Booking calendar (only when ticketSalesActive) -->
+    <div class="booking-container reveal-up" id="bookingContainer" style="--delay:.15s">
+      <div class="booking-step" id="step1">
+
+        <!-- Calendar (left) -->
+        <div class="calendar-wrap">
+          <div class="calendar-header">
+            <button class="cal-nav" id="prevMonth" title="Previous month">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <span class="cal-month-label" id="calMonthLabel">April 2026</span>
+            <button class="cal-nav" id="nextMonth" title="Next month">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+          <div class="cal-weekdays" id="calWeekdays">
+            <span>Mo</span><span>Tu</span><span>We</span>
+            <span>Th</span><span>Fr</span><span>Sa</span><span>Su</span>
+          </div>
+          <div class="cal-grid" id="calGrid"></div>
+        </div>
+
+        <!-- Slots (right) -->
+        <div class="slots-panel" id="slotsPanel">
+          <div class="slots-placeholder" id="slotsPlaceholder">
+            <i class="fa-regular fa-calendar-check"></i>
+            <p data-i18n="slotsPlaceholder">Select a highlighted day from the calendar to see available time slots.</p>
+          </div>
+          <div class="slots-list" id="slotsList" style="display:none">
+            <h3 id="slotsDateTitle">
+              <i class="fa-regular fa-calendar"></i>
+              <span></span>
+            </h3>
+            <div id="slotsItems"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ FOOTER ══════════════ -->
+  <footer id="footer">
+    <div class="footer-inner">
+      <div class="footer-logo">
+        <span class="logo-main" id="footerLogoMain">Phantasialand</span>
+        <span class="logo-sub">Roblox</span>
+      </div>
+      <p class="footer-tagline" id="footerTagline"></p>
+      <div class="footer-links">
+        <a href="#" onclick="smoothScrollTo('hero'); return false;">
+          <i class="fa-solid fa-house"></i> <span data-i18n="navHome">Home</span>
+        </a>
+        <a href="#" onclick="smoothScrollTo('themenwelten'); return false;">
+          <i class="fa-solid fa-map"></i> <span data-i18n="navWorlds">Theme Worlds</span>
+        </a>
+        <a href="#" id="footerBookLink" onclick="smoothScrollTo('buchen'); return false;">
+          <i class="fa-solid fa-ticket"></i> <span data-i18n="navBook">Book</span>
+        </a>
+      </div>
+      <div class="footer-disclaimer">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <p>
+          <strong data-i18n="footerDisclaimerTitle">Legal Notice:</strong>
+          <span data-i18n="footerDisclaimer"> Phantasialand – Roblox is an unofficial fan project on the Roblox platform and has no connection whatsoever with the real Phantasialand Freizeit- und Erlebnispark GmbH &amp; Co. KG in Brühl. All trademarks, names, logos and rights of the real Phantasialand are the property of their respective owners. This project is an independent, non-commercial fan experience and is not supported or endorsed by Phantasialand.</span>
+        </p>
+      </div>
+      <div class="footer-copy">
+        <span>&copy; <span id="footerYear"></span> Phantasialand – Roblox &nbsp;|&nbsp; Fan Project</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ══════════════ BOOKING MODAL ══════════════ -->
+  <div class="modal-overlay" id="bookingModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-card">
+      <button class="modal-close" id="modalClose" aria-label="Close">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
+  <!-- ══════════════ SCRIPTS ══════════════ -->
+  <script src="settings.js"></script>
+  <script src="app.js"></script>
+  <script src="booking.js"></script>
+
 </body>
 </html>
